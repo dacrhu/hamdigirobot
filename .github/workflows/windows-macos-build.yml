@@ -222,6 +222,12 @@ jobs:
         #     hardened runtime blocks that outright.
         run: |
           BUNDLE="dist/HAM Digi Robot.app"
+          # Newer PySide6 wheels ship Qt's own tool apps (Assistant,
+          # Designer, Linguist, ...) with self-referential symlinks that make
+          # `codesign --deep` fail ("Too many levels of symbolic links").
+          # This app uses none of them, so drop them before signing.
+          find "$BUNDLE/Contents" \( -name "*__dot__app" -o -name "*.app" \) -path "*PySide6*" -prune \
+            -exec rm -rf {} + 2>/dev/null || true
           find "$BUNDLE" -type f \( -name "*.dylib" -o -name "*.so" \) \
             -exec codesign --remove-signature {} \; 2>/dev/null || true
           find "$BUNDLE" -type f \( -name "*.dylib" -o -name "*.so" \) \
