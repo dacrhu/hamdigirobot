@@ -37,8 +37,8 @@ into the matching mode over CAT, when a Hamlib connection is configured.
 
 **RTTY** (Baudot/ITA2, AFSK through the sound card)
 - **Receive** — two-tone (mark/space) decoder with a one-bit matched
-  filter and UART framing (the squelch slider sets how clearly one tone
-  must dominate); the waterfall shows labelled MARK and SPACE markers with
+  filter and UART framing (a level squelch like the CW one: the signal
+  must stand out of the noise measured beside the tone pair); the waterfall shows labelled MARK and SPACE markers with
   tolerance bands, to tune the signal in by.
 - **Transmit** — phase-continuous AFSK, ITA2/US-TTY Baudot with automatic
   LTRS/FIGS shifts, optional CAT PTT (follows the TX tab: the same rig).

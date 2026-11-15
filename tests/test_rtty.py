@@ -109,3 +109,52 @@ def test_chunk_size_independence():
         core = RttyDecoderCore(SAMPLE_RATE, params)
         out = "".join(core.process_block(audio[i : i + chunk]).decoded_text for i in range(0, len(audio), chunk))
         assert out == TEXT, chunk
+
+
+# -- squelch ---------------------------------------------------------------
+
+
+def _run(core, audio):
+    text, opens = "", []
+    for i in range(0, len(audio), CHUNK):
+        r = core.process_block(audio[i : i + CHUNK])
+        text += r.decoded_text
+        opens.append(r.squelch_open)
+    return text, np.array(opens)
+
+
+@pytest.mark.parametrize("ratio", [5.0, 14.0, 30.0])
+def test_squelch_stays_closed_and_silent_on_noise_only(ratio):
+    rng = np.random.default_rng(7)
+    noise = rng.normal(0, 0.3, SAMPLE_RATE * 40).astype(np.float32)
+    text, opens = _run(RttyDecoderCore(SAMPLE_RATE, RttyParams(), squelch_ratio=ratio), noise)
+    assert text == ""
+    assert opens[len(opens) // 10 :].mean() < 0.01  # LED stays shut (after warm-up)
+
+
+def test_squelch_opens_on_signal_and_closes_after_it():
+    params = RttyParams()
+    audio = _audio(TEXT, params, snr_db=-3)
+    audio = np.concatenate([audio, np.zeros(SAMPLE_RATE * 2, np.float32)])
+    rng = np.random.default_rng(3)
+    audio = audio + 0.0  # noise-only tail below
+    audio[-SAMPLE_RATE * 2 :] = rng.normal(0, 1.0, SAMPLE_RATE * 2).astype(np.float32)
+    text, opens = _run(RttyDecoderCore(SAMPLE_RATE, params), audio)
+    assert text == TEXT  # no stray characters at the transmission's edges
+    per_second = SAMPLE_RATE // CHUNK
+    assert opens[:per_second].mean() == 0.0  # silent/noisy lead-in: closed
+    assert opens[per_second * 2 : per_second * 3].mean() == 1.0  # during the message: open
+    assert opens[-per_second:].mean() == 0.0  # noise-only tail: closed again
+
+
+def test_squelch_zero_is_off_and_always_open():
+    rng = np.random.default_rng(1)
+    noise = rng.normal(0, 0.3, SAMPLE_RATE * 5).astype(np.float32)
+    _, opens = _run(RttyDecoderCore(SAMPLE_RATE, RttyParams(), squelch_ratio=0.0), noise)
+    assert opens.all()
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_decodes_with_default_squelch_down_to_minus_9_db(seed):
+    params = RttyParams()
+    assert _decode(_audio(TEXT, params, snr_db=-9, seed=seed), params) == TEXT

@@ -5,4 +5,4 @@
 # (ui.main_window._show_about), and the macOS bundle metadata
 # (packaging/hamdigirobot.spec's CFBundleShortVersionString). Bump only this line
 # on a release; everything else derives from it.
-__version__ = "0.1.1"
+__version__ = "0.1.2"

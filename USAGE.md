@@ -9,9 +9,11 @@ instructions, see [README.md](README.md).
 *Pitch* box becomes the **mark tone** (the space tone is mark + shift, the
 waterfall marker sits between the two), the speed controls become a
 **baud rate** selector, and the CW-only controls (automatic speed,
-bandwidth, manual-keying emulation) are hidden. *Squelch sensitivity* sets
-how clearly one tone must dominate before a character is accepted (0 =
-accept anything, which prints garbage on noise). Shift, reverse and
+bandwidth, manual-keying emulation) are hidden. *Squelch sensitivity* works
+like in CW: the signal has to stand out of the noise (measured beside the
+tone pair) by that factor; below it the squelch LED goes grey, the
+waterfall dims and nothing is decoded (0 = squelch off, which prints
+garbage on noise). Shift, reverse and
 unshift-on-space are on the RX panel, stop bits next to the baud rate on
 the TX panel.
 RTTY audio goes through the sound card (Settings → Audio Devices); PTT
