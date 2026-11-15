@@ -15,7 +15,13 @@ permissions:
 
 jobs:
   build-appimage:
-    runs-on: ubuntu-latest
+    # Pinned (not ubuntu-latest) on purpose: the AppImage bundles libhamlib and
+    # libportaudio built/copied on this runner, so the runner's glibc is the
+    # minimum glibc of every system the AppImage runs on. ubuntu-latest moved
+    # to 26.04 (glibc 2.43) and the 0.1.2 AppImage then failed on Fedora 43
+    # (glibc 2.42): "version `GLIBC_2.43' not found (required by libhamlib.so.4)".
+    # 24.04 has glibc 2.39. Don't bump this without raising the check below.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -86,6 +92,23 @@ jobs:
         run: ./packaging/build_appimage.sh
         env:
           GITHUB_TOKEN: ${{ github.token }} # authenticated GitHub API calls: no rate-limit 403s
+
+      - name: Check the bundled libraries' glibc requirement
+        # Regression guard for the above: fail the build if anything in the
+        # AppDir needs a newer glibc than the oldest system we promise to run on.
+        run: |
+          max="2.39"
+          bad=0
+          while IFS= read -r f; do
+            v="$(objdump -T "$f" 2>/dev/null | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -V | tail -1)"
+            [ -z "$v" ] && continue
+            if [ "$(printf '%s\n%s\n' "$v" "$max" | sort -V | tail -1)" != "$max" ]; then
+              echo "ERROR: $f needs GLIBC_$v (newer than $max)" >&2
+              bad=1
+            fi
+          done < <(find packaging/build/AppDir -type f \( -name '*.so' -o -name '*.so.*' \))
+          [ "$bad" -eq 0 ] && echo "All bundled libraries need glibc <= $max"
+          exit "$bad"
 
       - name: Remove the runner's own PortAudio
         # build_appimage.sh already bundled a copy of it into the AppImage
