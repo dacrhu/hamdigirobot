@@ -157,7 +157,7 @@ jobs:
     # the dominant modern Mac target. No official Hamlib macOS binary
     # exists either way, so an Intel build would need its own from-source
     # bundling pass in addition to this one.
-    runs-on: macos-14
+    runs-on: macos-latest # was macos-14, which GitHub no longer provides (Apple Silicon)
     steps:
       - uses: actions/checkout@v4
         with:

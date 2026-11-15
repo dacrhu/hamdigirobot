@@ -249,6 +249,12 @@ install -m 0644 "${REPO_ROOT}/assets/icon-256.png" "${APPDIR}/usr/share/icons/hi
 # 5. Pack it up.
 # ---------------------------------------------------------------------------
 
+# Current appimagetool builds refuse an AppDir whose directories aren't
+# world-readable/executable (AppImages are run by other users than the one
+# who packaged them) -- and the extracted base Python comes out 0700 under
+# some umasks/runners, which fails the whole build. Normalise it.
+chmod -R a+rX "${APPDIR}"
+
 OUTPUT_FILE="${DIST_DIR}/HAM_Digi_Robot-x86_64.AppImage"
 
 # appimagetool downloads this "runtime" blob (the small stub that turns the
