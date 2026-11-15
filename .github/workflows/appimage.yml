@@ -97,6 +97,18 @@ jobs:
         # coincidentally also has libportaudio2 installed system-wide.
         run: sudo apt-get remove -y libportaudio2
 
+      - name: Start a headless PulseAudio server
+        # The app opens the audio system at startup (sounddevice/PortAudio
+        # initialises on import), and PortAudio's PulseAudio backend fails
+        # with "Can't connect to server" on a runner with no sound server --
+        # which current GitHub runner images no longer have. A null sink is
+        # enough to let the smoke test start the app for real.
+        run: |
+          sudo apt-get install -y --no-install-recommends pulseaudio
+          pulseaudio --start --exit-idle-time=-1 --log-target=stderr
+          pactl load-module module-null-sink sink_name=ci_null
+          pactl info | head -5
+
       - name: Smoke test
         # Actually runs the built AppImage headlessly and checks it starts
         # up and that the bundled Hamlib loads -- same check the
