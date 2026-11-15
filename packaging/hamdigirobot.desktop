@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=HAM Digi Robot
+GenericName=CW Transceiver
+Comment=CW (Morse) transceiver: decode received CW, send it back over audio or Hamlib CAT keying
+Exec=hamdigirobot
+Icon=hamdigirobot
+Categories=HamRadio;Utility;
+Terminal=false
+StartupNotify=true

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hamdigirobot"
+dynamic = ["version"]
+description = "HAM Digi Robot -- multi-mode (CW, RTTY) amateur radio digital transceiver desktop application"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "PySide6>=6.6,<6.12",  # <6.12: 6.12.0 + Python 3.11 aborts (none_dealloc)
+    "numpy",
+    "scipy",
+    "sounddevice",
+    "pyserial",
+    "certifi",  # CA bundle for the update check in frozen builds
+]
+
+[project.scripts]
+hamdigirobot = "hamdigirobot.app:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.hatch.version]
+# Single source of truth for the app version -- see src/hamdigirobot/__init__.py.
+path = "src/hamdigirobot/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hamdigirobot"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
