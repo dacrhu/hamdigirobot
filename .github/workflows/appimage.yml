@@ -84,6 +84,8 @@ jobs:
 
       - name: Build the AppImage
         run: ./packaging/build_appimage.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # authenticated GitHub API calls: no rate-limit 403s
 
       - name: Remove the runner's own PortAudio
         # build_appimage.sh already bundled a copy of it into the AppImage

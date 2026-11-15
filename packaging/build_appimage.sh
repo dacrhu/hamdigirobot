@@ -65,13 +65,20 @@ mkdir -p "${BUILD_DIR}" "${CACHE_DIR}" "${DIST_DIR}"
 log "Looking up the latest python${PYTHON_SERIES} AppImage release..."
 PYTHON_APPIMAGE_URL="$(python3 - "$PYTHON_SERIES" <<'PYEOF'
 import json
+import os
 import sys
 import urllib.request
 
 series = sys.argv[1]
 tag = f"python{series}"
 url = f"https://api.github.com/repos/niess/python-appimage/releases/tags/{tag}"
-with urllib.request.urlopen(url) as response:
+request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+# Unauthenticated API calls from shared CI runner IPs hit "403 rate limit
+# exceeded" now and then; use the token when one is provided (CI passes it).
+token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+if token:
+    request.add_header("Authorization", f"Bearer {token}")
+with urllib.request.urlopen(request) as response:
     data = json.load(response)
 
 for asset in data.get("assets", []):
