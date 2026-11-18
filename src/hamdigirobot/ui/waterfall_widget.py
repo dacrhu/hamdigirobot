@@ -21,7 +21,7 @@ the actual repaint rate from the (independent, audio-driven) row-push rate.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
@@ -101,6 +101,10 @@ SQUELCH_CLOSED_DIM_FACTOR = 0.35
 
 
 class WaterfallWidget(QWidget):
+    # The operator dragged the marker with the mouse and released it: the new
+    # marker frequency in Hz (the same quantity set_target_pitch takes).
+    marker_moved = Signal(float)
+
     def __init__(self, freq_bins: int = 300, time_rows: int = 150, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._freq_bins = freq_bins
@@ -119,6 +123,11 @@ class WaterfallWidget(QWidget):
         # radio's sideband); None = both (sideband unknown).
         self._sideband: str | None = None
         self._squelch_open = True
+        # Mouse drag of the marker: while dragging, only the *drawn* markers
+        # shift (the view stays put); the pitch is applied on release.
+        self._drag_grab_delta_hz: float | None = None
+        self._drag_shift_hz = 0.0
+        self.setMouseTracking(True)
 
         # Auto-leveling (simple AGC-like floor/ceiling tracking) so the
         # display stays readable across very different input signal levels.
@@ -222,6 +231,60 @@ class WaterfallWidget(QWidget):
         self._rgba_buffer = np.roll(self._rgba_buffer, 1, axis=0)
         self._rgba_buffer[0, :, 0:3] = rgb
 
+    def _hz_at(self, x: float) -> float:
+        low, high = self._display_range()
+        return low + (high - low) * x / max(self.width(), 1)
+
+    def _marker_regions_hz(self) -> list[tuple[float, float]]:
+        """The Hz intervals that count as "the marker": the tinted band
+        around the pitch (only the shown sideband) in CW/BPSK, each tone's
+        tolerance band in RTTY."""
+        if self._rtty_tones:
+            return [(hz - self._rtty_tolerance_hz, hz + self._rtty_tolerance_hz) for _l, hz in self._rtty_tones]
+        half = (self._signal_width_hz or 0.0) / 2.0
+        lo = self._center_hz - (half if self._sideband in (None, "LSB") else 0.0)
+        hi = self._center_hz + (half if self._sideband in (None, "USB") else 0.0)
+        return [(lo, hi)]
+
+    def _near_marker(self, x: float) -> bool:
+        # The whole marked area is grabbable, with a few pixels of slack so
+        # the bare line stays easy to hit too.
+        low, high = self._display_range()
+        span = max(high - low, 1)
+        for lo_hz, hi_hz in self._marker_regions_hz():
+            x0 = self.width() * (lo_hz - low) / span
+            x1 = self.width() * (hi_hz - low) / span
+            if x0 - 8 <= x <= x1 + 8:
+                return True
+        return False
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        if event.button() == Qt.MouseButton.LeftButton and self._near_marker(event.position().x()):
+            self._drag_grab_delta_hz = self._hz_at(event.position().x()) - self._center_hz
+            self._drag_shift_hz = 0.0
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        x = event.position().x()
+        if self._drag_grab_delta_hz is not None:
+            self._drag_shift_hz = self._hz_at(x) - self._drag_grab_delta_hz - self._center_hz
+            event.accept()
+            return
+        self.setCursor(Qt.CursorShape.SizeHorCursor if self._near_marker(x) else Qt.CursorShape.ArrowCursor)
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        if self._drag_grab_delta_hz is not None and event.button() == Qt.MouseButton.LeftButton:
+            new_hz = self._center_hz + self._drag_shift_hz
+            self._drag_grab_delta_hz = None
+            self._drag_shift_hz = 0.0
+            self.marker_moved.emit(new_hz)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
         painter = QPainter(self)
         rect = self.rect()
@@ -251,6 +314,7 @@ class WaterfallWidget(QWidget):
         # Vivid, fully-opaque magenta: a hue that doesn't occur anywhere in
         # the colormap above (which runs dark -> blue -> cyan -> warm
         # yellow), so the guides stay unambiguous against any signal level.
+        marker_hz = self._center_hz + self._drag_shift_hz
         if self._rtty_tones:
             self._paint_rtty_markers(painter, rect, low, span)
             return
@@ -259,9 +323,9 @@ class WaterfallWidget(QWidget):
             half_width = self._signal_width_hz / 2.0
             # Tint the two half-bands (centre..edge) with a translucent fill
             # and label them: below the pitch = LSB side, above = USB side.
-            center_x = rect.width() * (self._center_hz - low) / span
-            left_x = rect.width() * (self._center_hz - half_width - low) / span
-            right_x = rect.width() * (self._center_hz + half_width - low) / span
+            center_x = rect.width() * (marker_hz - low) / span
+            left_x = rect.width() * (marker_hz - half_width - low) / span
+            right_x = rect.width() * (marker_hz + half_width - low) / span
             band_h = rect.height()
             # Only the radio's own sideband is marked when it's known.
             show_lsb = self._sideband in (None, "LSB")
@@ -281,9 +345,9 @@ class WaterfallWidget(QWidget):
             painter.setPen(QPen(QColor(255, 0, 220), 2))
             edges = []
             if show_lsb:
-                edges.append(self._center_hz - half_width)
+                edges.append(marker_hz - half_width)
             if show_usb:
-                edges.append(self._center_hz + half_width)
+                edges.append(marker_hz + half_width)
             for edge_hz in edges:
                 x = rect.width() * (edge_hz - low) / span
                 painter.drawLine(int(x), 0, int(x), rect.height())
@@ -291,7 +355,7 @@ class WaterfallWidget(QWidget):
         # Target-pitch marker: tune the radio's VFO until the signal lines up
         # here. Bright red-white, thicker than the bandwidth guides so the
         # exact target frequency always reads as the most prominent line.
-        marker_x = rect.width() * (self._center_hz - low) / span
+        marker_x = rect.width() * (marker_hz - low) / span
         painter.setPen(QPen(QColor(255, 40, 40), 3))
         painter.drawLine(int(marker_x), 0, int(marker_x), rect.height())
 
@@ -302,7 +366,7 @@ class WaterfallWidget(QWidget):
         marker), space = magenta; both opaque hues absent from the colormap."""
         label_h = painter.fontMetrics().height()
         metrics = painter.fontMetrics()
-        ordered = sorted(self._rtty_tones, key=lambda t: t[1])
+        ordered = sorted(((n, h + self._drag_shift_hz) for n, h in self._rtty_tones), key=lambda t: t[1])
         for position, (label, hz) in enumerate(ordered):
             color = QColor(255, 40, 40) if label == "MARK" else QColor(255, 0, 220)
             x = rect.width() * (hz - low) / span

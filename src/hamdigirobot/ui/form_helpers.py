@@ -15,7 +15,7 @@ other row for space. Echoes QsoPanel's own row-0-label/row-1-field shape
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QLabel, QLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QLayout, QVBoxLayout, QWidget
 
 # Fixed width for RxPanel/TxPanel's settings columns. Chosen from the
 # widest real content that has to fit without compression -- measured via
@@ -34,6 +34,9 @@ SETTINGS_COLUMN_WIDTH = 320
 # content_row.setSpacing(14): 8 < 10 < 14.
 FIELD_LABEL_SPACING = 2
 FIELD_BLOCK_SPACING = 10
+
+# Caption column width of inline_field rows (fits "Mark tone (Hz):").
+INLINE_LABEL_WIDTH = 105
 
 
 def layout_widgets(layout: QLayout) -> list[QWidget]:
@@ -67,3 +70,22 @@ def labeled_field(label_text: str, field: QWidget | QLayout, parent: QWidget) ->
     else:
         block.addWidget(field)
     return block
+
+
+def inline_field(label_text: str, field: QWidget | QLayout, parent: QWidget) -> QHBoxLayout:
+    """Compact variant of labeled_field: the caption sits to the *left* of
+    `field` in a fixed-width column (so the fields line up), costing one row
+    of height instead of two. The caption is always the layout's first item."""
+    caption = QLabel(label_text, parent)
+    caption.setToolTip(label_text)
+    caption.setProperty("role", "fieldLabel")
+    caption.setFixedWidth(INLINE_LABEL_WIDTH)
+
+    row = QHBoxLayout()
+    row.setSpacing(6)
+    row.addWidget(caption)
+    if isinstance(field, QLayout):
+        row.addLayout(field, stretch=1)
+    else:
+        row.addWidget(field, stretch=1)
+    return row

@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 
 from hamdigirobot.config import AppConfig
 from hamdigirobot.tx.encoder import MANUAL_KEYING_LEVEL_MAX, MANUAL_KEYING_LEVEL_MIN
-from hamdigirobot.ui.form_helpers import FIELD_BLOCK_SPACING, SETTINGS_COLUMN_WIDTH, labeled_field, layout_widgets
+from hamdigirobot.ui.form_helpers import FIELD_BLOCK_SPACING, SETTINGS_COLUMN_WIDTH, inline_field, layout_widgets
 from hamdigirobot.ui.macro_bar import MacroBar
 from hamdigirobot.ui.style import make_separator
 
@@ -172,7 +172,7 @@ class TxPanel(QGroupBox):
         self.baud_combo.setVisible(False)
         speed_row.addWidget(self.baud_combo)
 
-        speed_block = labeled_field("Speed (WPM):", speed_row, self)
+        speed_block = inline_field("Speed (WPM):", speed_row, self)
         self.speed_caption: QLabel = speed_block.itemAt(0).widget()
         controls_layout.addLayout(speed_block)
 
@@ -181,7 +181,7 @@ class TxPanel(QGroupBox):
         for stop_bits in RTTY_STOP_BIT_PRESETS:
             self.stop_bits_combo.addItem(f"{stop_bits:g}", userData=stop_bits)
         self.stop_bits_combo.setCurrentIndex(1)
-        stop_bits_block = labeled_field("Stop bits:", self.stop_bits_combo, self)
+        stop_bits_block = inline_field("Stop bits:", self.stop_bits_combo, self)
         controls_layout.addLayout(stop_bits_block)
         self._rtty_only_widgets: list[QWidget] = layout_widgets(stop_bits_block)
         for widget in self._rtty_only_widgets:
@@ -223,7 +223,7 @@ class TxPanel(QGroupBox):
         output_level_row = QHBoxLayout()
         output_level_row.addWidget(self.output_level_slider, stretch=1)
         output_level_row.addWidget(self.output_level_label)
-        self._output_level_block = labeled_field("Output level:", output_level_row, self)
+        self._output_level_block = inline_field("Output level:", output_level_row, self)
         controls_layout.addLayout(self._output_level_block)
         self._output_level_widgets = layout_widgets(self._output_level_block)
         self.set_output_level_available(True)

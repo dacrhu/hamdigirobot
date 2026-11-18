@@ -31,12 +31,13 @@ code table covers ASCII up to `z` (no `{ | } ~`).
 
 ## Receive (RX panel)
 
-- Waterfall + decoded text pane at the top. Click a spot on the waterfall
-  to tune the decoder there.
+- Waterfall + decoded text pane at the top. Drag the marker (anywhere in
+  its tinted area) with the mouse to retune the pitch / carrier; the value
+  is applied when you let go.
 - **Pitch (Hz)** — set to match your radio's own sidetone frequency.
 - **Bandwidth** — how wide a slice around the pitch the decoder listens
   to; **Automatic** lets it track the signal instead of a fixed width.
-- **Squelch sensitivity** — how strong a signal has to be before it's
+- **Squelch** — how strong a signal has to be before it's
   decoded; the dot next to it lights up while the squelch is open.
 - **Input level** — software gain on the received audio, 0–300 % (100 % =
   unchanged). Set the sound card / rig output level first; this is for fine

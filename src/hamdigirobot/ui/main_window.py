@@ -107,11 +107,7 @@ class MainWindow(QMainWindow):
         #    height added on top, or the window's floor comes out shorter
         #    than what the central widget actually needs, silently
         #    reintroducing the exact per-panel deficit (1) guards against.
-        for panel in (self.rx_panel, self.qso_panel, self.tx_panel):
-            panel.setMinimumHeight(panel.minimumSizeHint().height())
-        chrome_height = self.menuBar().sizeHint().height() + self.statusBar().sizeHint().height()
-        central_minimum = central.minimumSizeHint()
-        self.setMinimumSize(central_minimum.width(), central_minimum.height() + chrome_height)
+        self._update_size_floors()
 
         self.statusBar().showMessage("Radio: not connected | Audio: not initialized")
         self._start_update_check()
@@ -207,6 +203,21 @@ class MainWindow(QMainWindow):
         self.tx_panel.set_manual_keying_available(self.config.tx_backend != "hamlib")
         self.qso_panel.set_frequency_editable(self.config.tx_backend != "hamlib")
 
+    def _update_size_floors(self) -> None:
+        """Per-panel and whole-window minimum heights (see the long note in
+        __init__): recomputed on every mode switch, because the CW, RTTY and
+        BPSK layouts show different controls -- a floor measured in one mode
+        is too low for the next, which is what squeezed the CW controls."""
+        for panel in (self.rx_panel, self.qso_panel, self.tx_panel):
+            panel.setMinimumHeight(0)
+        central = self.centralWidget()
+        central.layout().invalidate()
+        for panel in (self.rx_panel, self.qso_panel, self.tx_panel):
+            panel.setMinimumHeight(panel.minimumSizeHint().height())
+        chrome_height = self.menuBar().sizeHint().height() + self.statusBar().sizeHint().height()
+        central_minimum = central.minimumSizeHint()
+        self.setMinimumSize(central_minimum.width(), central_minimum.height() + chrome_height)
+
     def _apply_mode_to_panels(self) -> None:
         """Mode-specific look of the (shared-layout) panels: speed vs. baud,
         pitch vs. mark tone, which controls are shown. Also loads that
@@ -229,6 +240,7 @@ class MainWindow(QMainWindow):
         self.rx_panel.pitch_spinbox.setValue(pitch)
         self.setWindowTitle(f"HAM Digi Robot — {self._mode.label}")
         self._update_output_level_available()
+        self._update_size_floors()
 
     def _update_output_level_available(self) -> None:
         # CW over CAT sends no audio at all.

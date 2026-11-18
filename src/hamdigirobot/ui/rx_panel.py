@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from hamdigirobot.ui.form_helpers import FIELD_BLOCK_SPACING, SETTINGS_COLUMN_WIDTH, labeled_field, layout_widgets
+from hamdigirobot.ui.form_helpers import FIELD_BLOCK_SPACING, SETTINGS_COLUMN_WIDTH, inline_field, layout_widgets
 from hamdigirobot.ui.qso_fields import QSO_FIELDS
 from hamdigirobot.ui.selection_popup import SelectionMacroPopup
 from hamdigirobot.ui.style import make_separator
@@ -148,7 +148,7 @@ class RxPanel(QGroupBox):
         pitch_row = QHBoxLayout()
         pitch_row.addWidget(self.pitch_spinbox, stretch=1)
         pitch_row.addWidget(self.sideband_combo)
-        pitch_block = labeled_field("Pitch (Hz):", pitch_row, self)
+        pitch_block = inline_field("Pitch (Hz):", pitch_row, self)
         self.pitch_caption: QLabel = pitch_block.itemAt(0).widget()
         controls_layout.addLayout(pitch_block)
         # The waterfall marker sits on the pitch in CW; in RTTY it sits
@@ -157,10 +157,12 @@ class RxPanel(QGroupBox):
         self._rtty_shift_hz = 170.0
         self._rtty_reverse = False
         self.pitch_spinbox.valueChanged.connect(self._update_waterfall_marker)
+        # Dragging the waterfall marker retunes the pitch/carrier.
+        self.waterfall.marker_moved.connect(self._on_waterfall_marker_moved)
 
-        self.wpm_label = QLabel("RX speed: -- WPM")
-        controls_layout.addWidget(self.wpm_label)
-
+        # Detected speed readout; created here, placed below the fixed-speed
+        # row (see rx_speed_row further down).
+        self.wpm_label = QLabel("-- WPM")
         # RTTY-only modem controls (hidden in CW, see set_rtty_mode). Shift
         # and reverse are shared by RX and TX, hence they live here.
         self.rtty_shift_spinbox = QSpinBox(self)
@@ -169,7 +171,7 @@ class RxPanel(QGroupBox):
         self.rtty_shift_spinbox.setSuffix(" Hz")
         self.rtty_shift_spinbox.setValue(170)
         self.rtty_shift_spinbox.setToolTip("Space tone = mark tone + shift. Amateur RTTY: 170 Hz.")
-        shift_block = labeled_field("Shift:", self.rtty_shift_spinbox, self)
+        shift_block = inline_field("Shift:", self.rtty_shift_spinbox, self)
         controls_layout.addLayout(shift_block)
 
         self.rtty_reverse_checkbox = QCheckBox("Reverse (swap mark/space)", self)
@@ -201,7 +203,9 @@ class RxPanel(QGroupBox):
         self.rx_speed_spinbox.setRange(RX_SPEED_MIN_WPM, RX_SPEED_MAX_WPM)
         self.rx_speed_spinbox.setValue(RX_SPEED_DEFAULT_WPM)
         self.rx_speed_spinbox.setSuffix(" WPM")
-        controls_layout.addWidget(self.rx_speed_spinbox)
+        # Fixed speed and its "Automatic" switch share one row.
+        rx_speed_row = QHBoxLayout()
+        rx_speed_row.addWidget(self.rx_speed_spinbox, stretch=1)
 
         self.auto_rx_speed_checkbox = QCheckBox("Automatic", self)
         self.auto_rx_speed_checkbox.setChecked(True)
@@ -209,7 +213,14 @@ class RxPanel(QGroupBox):
             "When checked, the receive speed is detected automatically. "
             "When unchecked, the decoder uses the fixed speed set above."
         )
-        controls_layout.addWidget(self.auto_rx_speed_checkbox)
+        rx_speed_row.addWidget(self.auto_rx_speed_checkbox)
+        rx_speed_block = inline_field("RX speed:", rx_speed_row, self)
+        controls_layout.addLayout(rx_speed_block)
+        # Readout row: "Detected" (live CW speed) / "RX speed" (fixed RTTY
+        # or BPSK baud rate -- see set_rtty_mode / set_bpsk_mode).
+        wpm_block = inline_field("Detected:", self.wpm_label, self)
+        self.wpm_caption: QLabel = wpm_block.itemAt(0).widget()
+        controls_layout.addLayout(wpm_block)
         self.auto_rx_speed_checkbox.toggled.connect(self._on_auto_rx_speed_toggled)
         self._on_auto_rx_speed_toggled(True)
 
@@ -227,7 +238,7 @@ class RxPanel(QGroupBox):
         self.bandwidth_label = QLabel("")
         self.bandwidth_label.setMinimumWidth(50)
         bandwidth_row.addWidget(self.bandwidth_label)
-        bandwidth_block = labeled_field("Bandwidth:", bandwidth_row, self)
+        bandwidth_block = inline_field("Bandwidth:", bandwidth_row, self)
         controls_layout.addLayout(bandwidth_block)
 
         self.auto_bandwidth_checkbox = QCheckBox("Automatic", self)
@@ -265,7 +276,7 @@ class RxPanel(QGroupBox):
         self.squelch_state_dot.setObjectName("squelchStateDot")
         self.squelch_state_dot.setFixedSize(12, 12)
         squelch_row.addWidget(self.squelch_state_dot)
-        controls_layout.addLayout(labeled_field("Squelch sensitivity:", squelch_row, self))
+        controls_layout.addLayout(inline_field("Squelch:", squelch_row, self))
 
         # The bandwidth label shows a Hz value that depends on the decoder's
         # actual Goertzel bin width, so main_window owns updating it (via
@@ -289,7 +300,7 @@ class RxPanel(QGroupBox):
         input_level_row = QHBoxLayout()
         input_level_row.addWidget(self.input_level_slider, stretch=1)
         input_level_row.addWidget(self.input_level_label)
-        controls_layout.addLayout(labeled_field("Input level:", input_level_row, self))
+        controls_layout.addLayout(inline_field("Input level:", input_level_row, self))
 
         # Absorbs spare height when CW-only rows are hidden (RTTY mode), so
         # the remaining controls stay packed at the top.
@@ -299,8 +310,7 @@ class RxPanel(QGroupBox):
         # detection, the adaptive Goertzel bandwidth); hidden in RTTY mode.
         self._cw_only_widgets: list[QWidget] = [
             self.sideband_combo,
-            self.rx_speed_spinbox,
-            self.auto_rx_speed_checkbox,
+            *layout_widgets(rx_speed_block),
             self.auto_bandwidth_checkbox,
             self._bandwidth_separator,
             *layout_widgets(bandwidth_block),
@@ -326,6 +336,9 @@ class RxPanel(QGroupBox):
         self._selection_popup_timer.setSingleShot(True)
         self._selection_popup_timer.timeout.connect(self._maybe_show_selection_popup)
         self.decoded_text.selectionChanged.connect(self._on_decoded_text_selection_changed)
+
+    def _on_waterfall_marker_moved(self, marker_hz: float) -> None:
+        self.pitch_spinbox.setValue(round(marker_hz - self._marker_offset_hz))
 
     def _update_waterfall_marker(self, *_args: object) -> None:
         self.waterfall.set_target_pitch(self.pitch_spinbox.value() + self._marker_offset_hz)
@@ -411,6 +424,7 @@ class RxPanel(QGroupBox):
         self._rtty_mode = enabled
         self.setTitle("RX — RTTY" if enabled else "RX")
         self.pitch_caption.setText("Mark tone (Hz):" if enabled else "Pitch (Hz):")
+        self.wpm_caption.setText("RX speed:" if enabled else "Detected:")
         low, high = RTTY_PITCH_RANGE if enabled else CW_PITCH_RANGE
         self.pitch_spinbox.setRange(low, high)
         for widget in self._cw_only_widgets:
@@ -447,21 +461,22 @@ class RxPanel(QGroupBox):
         self._rtty_mode = False
         self.setTitle("RX — BPSK63")
         self.pitch_caption.setText("Carrier (Hz):")
+        self.wpm_caption.setText("RX speed:")
         self.pitch_spinbox.setRange(*RTTY_PITCH_RANGE)
         for widget in (*self._cw_only_widgets, *self._rtty_only_widgets):
             widget.setVisible(False)
         self._marker_offset_hz = 0.0
-        self.wpm_label.setText(f"RX speed: {baud:g} baud")
+        self.wpm_label.setText(f"{baud:g} baud")
         self._update_waterfall_marker()
 
     def set_rtty_baud(self, baud: float) -> None:
-        self.wpm_label.setText(f"RX speed: {baud:g} baud")
+        self.wpm_label.setText(f"{baud:g} baud")
 
     def set_wpm(self, wpm: float | None) -> None:
         if wpm is None:
-            self.wpm_label.setText("RX speed: -- WPM")
+            self.wpm_label.setText("-- WPM")
         else:
-            self.wpm_label.setText(f"RX speed: {wpm:.0f} WPM")
+            self.wpm_label.setText(f"{wpm:.0f} WPM")
 
     def set_bandwidth_label(self, hz: float) -> None:
         # Rounded to the nearest 5 Hz rather than the nearest 1 Hz: the raw
