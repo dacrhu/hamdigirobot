@@ -36,6 +36,8 @@ class AudioCapture:
         self.device = device
         self.ring_buffer = RingBuffer(capacity=int(samplerate * buffer_seconds))
         self._stream: sd.InputStream | None = None
+        #: Software input gain (linear, 1.0 = unchanged); may be changed live from the UI thread.
+        self.gain = 1.0
         self._blocksize = blocksize
         #: When set, `device` is ignored and the stream always opens on the
         #: safe ALSA default -- PortAudio only exposes PipeWire's own named
@@ -54,6 +56,9 @@ class AudioCapture:
         # Mono-ize by taking channel 0 if the device is multi-channel; this is a
         # fixed, allocation-light slice/copy, safe for the realtime callback.
         mono = indata[:, 0] if indata.ndim > 1 else indata
+        gain = self.gain
+        if gain != 1.0:
+            mono = mono * np.float32(gain)
         self.ring_buffer.write(mono.astype(np.float32, copy=False))
 
     def start(self) -> None:

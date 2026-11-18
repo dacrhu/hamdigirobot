@@ -132,3 +132,43 @@ def test_rig_goes_to_data_usb_in_bpsk63():
     from hamdigirobot.hamlib.sideband import rig_modes_for
 
     assert rig_modes_for("bpsk63") == rig_modes_for("rtty")
+
+
+def test_output_level_scales_audio_backends():
+    import numpy as np
+
+    from hamdigirobot.audio.playback import SidetonePlayback
+    from hamdigirobot.tx.audio_backend import AudioTxBackend
+    from hamdigirobot.tx.bpsk_backend import BpskAudioTxBackend
+
+    def peak(pb):
+        pb.key(True)
+        out = np.zeros((4800, 1), np.float32)
+        for _ in range(3):
+            pb._callback(out, 4800, None, None)
+        return float(np.max(np.abs(out)))
+
+    full, half = SidetonePlayback(600.0), SidetonePlayback(600.0)
+    half.volume = 0.5
+    assert abs(peak(half) / peak(full) - 0.5) < 0.01
+    backend = AudioTxBackend(frequency_hz=600.0)
+    backend.volume = 0.25
+    assert backend._playback.volume == 0.25 and backend.volume == 0.25
+
+    b = BpskAudioTxBackend(params=BpskParams())
+    b._buffer = np.ones(1000, np.float32)
+    b._done, b.volume = False, 0.3
+    out = np.zeros((480, 1), np.float32)
+    b._callback(out, 480, None, None)
+    assert np.allclose(out, 0.3)
+
+
+def test_capture_gain_applied():
+    import numpy as np
+
+    from hamdigirobot.audio.capture import AudioCapture
+
+    cap = AudioCapture()
+    cap.gain = 2.0
+    cap._callback(np.full((100, 1), 0.1, np.float32), 100, None, None)
+    assert np.allclose(cap.ring_buffer.read_available(), 0.2)

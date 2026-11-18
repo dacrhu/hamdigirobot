@@ -48,6 +48,8 @@ RX_SPEED_MIN_WPM = 5
 RX_SPEED_MAX_WPM = 60
 RX_SPEED_DEFAULT_WPM = 20
 
+INPUT_LEVEL_MIN = 0
+INPUT_LEVEL_MAX = 300  # percent
 SQUELCH_SLIDER_MIN = 0  # 0 = squelch fully open (effectively disabled), see decoder.squelch_ratio setter
 SQUELCH_SLIDER_MAX = 30
 SQUELCH_SLIDER_DEFAULT = 14
@@ -273,6 +275,21 @@ class RxPanel(QGroupBox):
         self.squelch_slider.valueChanged.connect(self._on_squelch_slider_changed)
         self._on_squelch_slider_changed(self.squelch_slider.value())
         self.set_squelch_open(True)
+
+        self.input_level_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.input_level_slider.setRange(INPUT_LEVEL_MIN, INPUT_LEVEL_MAX)
+        self.input_level_slider.setValue(100)
+        self.input_level_slider.setToolTip(
+            "Software gain on the received audio (100% = unchanged). Set the sound "
+            "card / rig output level first; this is for fine adjustment."
+        )
+        self.input_level_label = QLabel("100%", self)
+        self.input_level_label.setMinimumWidth(40)
+        self.input_level_slider.valueChanged.connect(lambda v: self.input_level_label.setText(f"{v}%"))
+        input_level_row = QHBoxLayout()
+        input_level_row.addWidget(self.input_level_slider, stretch=1)
+        input_level_row.addWidget(self.input_level_label)
+        controls_layout.addLayout(labeled_field("Input level:", input_level_row, self))
 
         # Absorbs spare height when CW-only rows are hidden (RTTY mode), so
         # the remaining controls stay packed at the top.

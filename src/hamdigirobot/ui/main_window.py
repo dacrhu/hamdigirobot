@@ -168,6 +168,8 @@ class MainWindow(QMainWindow):
         self._freq_monitor_thread.start()
         self._sync_freq_monitor_target()
 
+        self.rx_panel.input_level_slider.valueChanged.connect(self._on_input_level_changed)
+        self.tx_panel.output_level_slider.valueChanged.connect(self._on_output_level_changed)
         self.rx_panel.pitch_spinbox.valueChanged.connect(self._on_target_pitch_changed)
         self.rx_panel.bandwidth_slider.valueChanged.connect(self._on_bandwidth_changed)
         self.rx_panel.squelch_slider.valueChanged.connect(self._on_squelch_ratio_changed)
@@ -189,6 +191,8 @@ class MainWindow(QMainWindow):
 
     def _apply_config_to_widgets(self) -> None:
         self.rx_panel.set_manual_sideband(self.config.cw_sideband)
+        self.rx_panel.input_level_slider.setValue(self.config.rx_input_gain_percent)
+        self.tx_panel.output_level_slider.setValue(self.config.tx_output_level_percent)
         self._apply_mode_to_panels()
         self._apply_cw_sideband()
         self.rx_panel.waterfall.set_half_span(self.config.waterfall_half_span_hz)
@@ -224,6 +228,21 @@ class MainWindow(QMainWindow):
         self.tx_panel.set_bpsk_mode(psk)
         self.rx_panel.pitch_spinbox.setValue(pitch)
         self.setWindowTitle(f"HAM Digi Robot — {self._mode.label}")
+        self._update_output_level_available()
+
+    def _update_output_level_available(self) -> None:
+        # CW over CAT sends no audio at all.
+        self.tx_panel.set_output_level_available(not (self._mode is CW and self.config.tx_backend == "hamlib"))
+
+    def _on_input_level_changed(self, percent: int) -> None:
+        self.config.rx_input_gain_percent = percent
+        if self._audio_capture is not None:
+            self._audio_capture.gain = percent / 100.0
+
+    def _on_output_level_changed(self, percent: int) -> None:
+        self.config.tx_output_level_percent = percent
+        if self._tx_backend is not None:
+            self._tx_backend.volume = percent / 100.0
 
     def _pitch_from_config(self) -> int:
         """The pitch spinbox value (CW pitch / RTTY mark / BPSK63 carrier)
@@ -342,6 +361,7 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(self.config, self)
         if dialog.exec():
             self.tx_panel.set_manual_keying_available(self.config.tx_backend != "hamlib")
+            self._update_output_level_available()
             self.qso_panel.set_frequency_editable(self.config.tx_backend != "hamlib")
             # Rig model/port/baud may have changed -- reconnect the monitor
             # against the current config rather than keep polling a now-
@@ -485,6 +505,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Audio error ({device_name or 'default device'}): {exc}")
             return
 
+        capture.gain = self.config.rx_input_gain_percent / 100.0
         self._audio_capture = capture
 
         if self._mode is BPSK63:
@@ -765,6 +786,7 @@ class MainWindow(QMainWindow):
         if backend is None:
             return  # a status bar message explaining why was already shown
 
+        backend.volume = self.config.tx_output_level_percent / 100.0
         if self._mode is RTTY:
             wpm = self.tx_panel.current_baud()
         elif self._mode is BPSK63:

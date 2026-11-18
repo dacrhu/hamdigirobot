@@ -73,6 +73,10 @@ class AppConfig:
 
     # RX
     rx_input_device: str | None = None
+    # Software levels (percent): RX input gain and TX audio output level.
+    # Mainly for the sound-card modes; the output level does nothing for CW over CAT.
+    rx_input_gain_percent: int = 100
+    tx_output_level_percent: int = 100
     waterfall_half_span_hz: int = 1000
     detection_bin_span: float = 1.0  # Goertzel bins +/- target; see dsp.tone_detector
     squelch_ratio: float = 14.0

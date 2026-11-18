@@ -22,6 +22,14 @@ class AudioTxBackend(TxBackend):
             route_to_pipewire_sink=route_to_pipewire_sink,
         )
 
+    @property
+    def volume(self) -> float:  # type: ignore[override]
+        return self._playback.volume
+
+    @volume.setter
+    def volume(self, value: float) -> None:
+        self._playback.volume = float(value)
+
     def start(self) -> None:
         self._playback.start()
 

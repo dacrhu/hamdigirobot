@@ -119,11 +119,11 @@ class RttyAudioTxBackend(TxBackend):
             fade = min(frames, int(STOP_FADE_S * self.samplerate))
             chunk = buf[self._pos : self._pos + fade]
             ramp = np.linspace(1.0, 0.0, len(chunk), dtype=np.float32)
-            outdata[: len(chunk), 0] = chunk * ramp
+            outdata[: len(chunk), 0] = chunk * ramp * np.float32(self.volume)
             self._done = True
             return
         chunk = buf[self._pos : self._pos + frames]
-        outdata[: len(chunk), 0] = chunk
+        outdata[: len(chunk), 0] = chunk * np.float32(self.volume)
         self._pos += len(chunk)
         if self._pos >= len(buf):
             self._done = True

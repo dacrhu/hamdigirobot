@@ -38,11 +38,21 @@ code table covers ASCII up to `z` (no `{ | } ~`).
   to; **Automatic** lets it track the signal instead of a fixed width.
 - **Squelch sensitivity** — how strong a signal has to be before it's
   decoded; the dot next to it lights up while the squelch is open.
+- **Input level** — software gain on the received audio, 0–300 % (100 % =
+  unchanged). Set the sound card / rig output level first; this is for fine
+  adjustment (it also changes the waterfall brightness).
 - **RX speed** shows the sender's live estimated WPM.
 - Select any decoded text to pop up **Callsign / RSTs / RSTr / QTH /
   Locator / Name** buttons — one click sends the selection straight into
   the matching QSO Data field below.
 - Right-click the decoded text for **Clear**.
+
+## Transmit levels (TX panel)
+
+- **Output level** — 0–100 % of the audio sent to the sound card in the
+  audio modes (RTTY, BPSK63, CW with the audio sidetone backend); adjust it
+  live while sending, so the rig's ALC barely moves. Greyed out for CW over
+  Hamlib CAT, where no audio is sent.
 
 ## QSO Data
 

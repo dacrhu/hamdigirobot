@@ -49,6 +49,8 @@ class SidetonePlayback:
         #: right after it starts.
         self._route_to_pipewire_sink = route_to_pipewire_sink
 
+        #: Output level (linear, 0..1); may be changed live from the UI thread.
+        self.volume = 1.0
         self._phase = 0.0
         self._amplitude = 0.0  # current, ramping toward _target_amplitude
         self._target_amplitude = 0.0
@@ -71,7 +73,7 @@ class SidetonePlayback:
         amp = target + (self._amplitude - target) * (self._ramp_alpha**n)
         self._amplitude = float(amp[-1])
 
-        outdata[:, 0] = (tone * amp).astype(np.float32)
+        outdata[:, 0] = (tone * amp * self.volume).astype(np.float32)
         self._phase = (self._phase + phase_inc * frames) % (2.0 * np.pi)
 
     def set_frequency(self, hz: float) -> None:

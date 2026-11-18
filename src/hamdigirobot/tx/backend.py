@@ -32,6 +32,10 @@ _POLL_INTERVAL_S = 0.01
 
 
 class TxBackend(ABC):
+    #: Audio output level (linear, 0..1) for backends that play audio; may be
+    #: changed live. Backends without audio output (CAT keying) ignore it.
+    volume: float = 1.0
+
     def send_text(
         self,
         text: str,

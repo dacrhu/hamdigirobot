@@ -214,6 +214,20 @@ class TxPanel(QGroupBox):
         )
         manual_keying_row.addWidget(self.manual_keying_level_label)
         controls_layout.addLayout(manual_keying_row)
+        self.output_level_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.output_level_slider.setRange(0, 100)
+        self.output_level_slider.setValue(100)
+        self.output_level_label = QLabel("100%", self)
+        self.output_level_label.setMinimumWidth(40)
+        self.output_level_slider.valueChanged.connect(lambda v: self.output_level_label.setText(f"{v}%"))
+        output_level_row = QHBoxLayout()
+        output_level_row.addWidget(self.output_level_slider, stretch=1)
+        output_level_row.addWidget(self.output_level_label)
+        self._output_level_block = labeled_field("Output level:", output_level_row, self)
+        controls_layout.addLayout(self._output_level_block)
+        self._output_level_widgets = layout_widgets(self._output_level_block)
+        self.set_output_level_available(True)
+
         # CW-only: hand-keying jitter means nothing for RTTY.
         self._cw_only_widgets: list[QWidget] = [
             self.speed_spinbox,
@@ -260,6 +274,17 @@ class TxPanel(QGroupBox):
         self.setTitle("TX — BPSK63")
         for widget in (*self._cw_only_widgets, *self._rtty_only_widgets, self.baud_combo):
             widget.setVisible(False)
+
+    def set_output_level_available(self, available: bool) -> None:
+        """Over CAT-keyed CW no audio is played, so the level has no effect."""
+        for widget in self._output_level_widgets:
+            widget.setEnabled(available)
+        self.output_level_slider.setToolTip(
+            "Audio output level of the sound-card modes (set it so the rig's ALC "
+            "barely moves)."
+            if available
+            else "Not used: CW is keyed over CAT, no audio is sent."
+        )
 
     def set_baud(self, baud: float) -> None:
         index = self.baud_combo.findData(float(baud))
