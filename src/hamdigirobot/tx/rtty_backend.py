@@ -139,6 +139,15 @@ class RttyAudioTxBackend(TxBackend):
         self._rig.set_ptt(on)
         self._ptt_on = on
 
+    def _render(self, text: str):
+        """The whole message as a waveform (samples + char_starts), or None
+        when there is nothing sendable. The one mode-specific step: BPSK63's
+        backend (tx.bpsk_backend) overrides just this."""
+        codes = encode_text(text, unshift_on_space=self.unshift_on_space)
+        if not codes:
+            return None
+        return synthesize(codes, self.params, sample_rate=self.samplerate)
+
     def send_text(
         self,
         text: str,
@@ -147,10 +156,9 @@ class RttyAudioTxBackend(TxBackend):
         progress_callback: Callable[[int], None] | None = None,
         jitter: float = 0.0,
     ) -> None:
-        codes = encode_text(text, unshift_on_space=self.unshift_on_space)
-        if not codes:
+        waveform = self._render(text)
+        if waveform is None:
             return
-        waveform = synthesize(codes, self.params, sample_rate=self.samplerate)
         starts = [s for s, _ in waveform.char_starts]
         indices = [i for _, i in waveform.char_starts]
 

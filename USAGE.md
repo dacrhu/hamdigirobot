@@ -5,7 +5,7 @@ instructions, see [README.md](README.md).
 
 ## Modes
 
-**Mode** menu: CW or RTTY. The panels keep their layout; in RTTY the
+**Mode** menu: CW, RTTY or BPSK63. The panels keep their layout; in RTTY the
 *Pitch* box becomes the **mark tone** (the space tone is mark + shift, the
 waterfall marker sits between the two), the speed controls become a
 **baud rate** selector, and the CW-only controls (automatic speed,
@@ -21,6 +21,13 @@ follows Settings → TX: with *Hamlib CAT* the same rig is keyed over CAT
 around each transmission, with *Audio (sound card)* the rig must be keyed
 by VOX / the audio itself. You can't
 change mode while transmitting.
+
+In **BPSK63** the *Pitch* box becomes the **carrier** frequency (the waterfall
+marker sits on it; the decoder follows a few Hz of mistuning); there is
+nothing else to set — the speed is fixed (62.5 baud) and the CW/RTTY
+controls are hidden. Squelch, audio devices and PTT work as in RTTY. Type
+plain text (upper and lower case are both sent; Enter = new line); the
+code table covers ASCII up to `z` (no `{ | } ~`).
 
 ## Receive (RX panel)
 

@@ -17,14 +17,14 @@ from typing import Literal
 
 from hamdigirobot.hamlib.ctypes_bindings import RIG_MODEL_NETRIGCTL
 
-CONFIG_VERSION = 14
+CONFIG_VERSION = 15
 
 TxBackendName = Literal["audio", "hamlib"]
 SidebandChoice = Literal["lsb", "usb"]
 HamlibConnectionType = Literal["serial", "network"]
 LoggingMethod = Literal["file", "udp"]
 LoggingUdpFormat = Literal["adif", "wsjtx"]
-ModeName = Literal["cw", "rtty"]
+ModeName = Literal["cw", "rtty", "bpsk63"]
 
 
 def config_dir() -> Path:
@@ -84,6 +84,7 @@ class AppConfig:
     # RTTY (AFSK through the sound card). target_pitch_hz is the CW tone;
     # in RTTY mode the pitch spinbox edits rtty_mark_hz instead (the space
     # tone is mark + shift; "reverse" swaps which of the two means mark).
+    bpsk_carrier_hz: int = 1000  # BPSK63 audio carrier (the pitch spinbox in that mode)
     rtty_baud: float = 45.45
     rtty_shift_hz: int = 170
     rtty_mark_hz: int = 2125
@@ -154,6 +155,12 @@ class AppConfig:
         known_fields = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known_fields}
         return cls(**filtered)
+
+    def bpsk_params(self):
+        """The BPSK63 modem settings as a tx.bpsk_modulator.BpskParams."""
+        from hamdigirobot.tx.bpsk_modulator import BpskParams
+
+        return BpskParams(freq_hz=float(self.bpsk_carrier_hz))
 
     def rtty_params(self):
         """The RTTY modem settings as a tx.rtty_modulator.RttyParams."""
@@ -237,6 +244,8 @@ def _migrate(data: dict) -> dict:
         data.setdefault("rtty_unshift_on_space", False)
     if version < 14:
         data.setdefault("cw_sideband", "usb")
+    if version < 15:
+        data.setdefault("bpsk_carrier_hz", 1000)
     if data.get("cw_sideband") not in ("lsb", "usb"):
         data["cw_sideband"] = "usb"  # e.g. an "auto" from a development build
     if version < CONFIG_VERSION:

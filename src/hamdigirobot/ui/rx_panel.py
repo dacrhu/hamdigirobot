@@ -421,6 +421,22 @@ class RxPanel(QGroupBox):
             self._on_auto_bandwidth_toggled(self.auto_bandwidth_checkbox.isChecked())
         self._update_waterfall_marker()
 
+    def set_bpsk_mode(self, enabled: bool, baud: float = 62.5) -> None:
+        """BPSK63 look of the panel; call *after* set_rtty_mode(False), which
+        resets the CW layout this builds on. One carrier (the pitch
+        spinbox), so none of the CW or RTTY-specific controls apply."""
+        if not enabled:
+            return
+        self._rtty_mode = False
+        self.setTitle("RX — BPSK63")
+        self.pitch_caption.setText("Carrier (Hz):")
+        self.pitch_spinbox.setRange(*RTTY_PITCH_RANGE)
+        for widget in (*self._cw_only_widgets, *self._rtty_only_widgets):
+            widget.setVisible(False)
+        self._marker_offset_hz = 0.0
+        self.wpm_label.setText(f"RX speed: {baud:g} baud")
+        self._update_waterfall_marker()
+
     def set_rtty_baud(self, baud: float) -> None:
         self.wpm_label.setText(f"RX speed: {baud:g} baud")
 

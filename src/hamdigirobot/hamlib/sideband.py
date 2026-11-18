@@ -23,13 +23,13 @@ def sideband_from_mode(mode: int) -> str | None:
 
 def rig_modes_for(mode_key: str) -> list[int]:
     """Rig modes to try, in order, when the app is in operating mode
-    `mode_key` ("cw" / "rtty"). RTTY is AFSK through the sound card, so the
-    rig wants its *data* USB mode: Hamlib's PKTUSB is the universal
+    `mode_key` ("cw" / "rtty" / "bpsk63"). RTTY and BPSK63 go through the sound
+    card as audio, so the rig wants its *data* USB mode: Hamlib's PKTUSB is the universal
     selector for it (Yaesu DATA-USB, Icom USB-D, ... -- the backend maps it),
     with plain USB as the fallback for a rig/backend that has no data mode
     (it rejects PKTUSB). CW: the rig's CW mode.
     """
-    if mode_key == "rtty":
+    if mode_key in ("rtty", "bpsk63"):
         return [b.RIG_MODE_PKTUSB, b.RIG_MODE_USB]
     return [b.RIG_MODE_CW]
 

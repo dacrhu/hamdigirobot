@@ -6,8 +6,9 @@ receive over your radio's audio, and send back — straight from your
 computer. The window layout is the same in every mode; the mode-specific
 settings (speed, tones, …) change with the **Mode** menu.
 
-Modes so far: **CW** (Morse; audio sidetone or Hamlib CAT keying) and
-**RTTY** (Baudot/ITA2 AFSK through the sound card, optional Hamlib CAT PTT).
+Modes so far: **CW** (Morse; audio sidetone or Hamlib CAT keying),
+**RTTY** (Baudot/ITA2 AFSK through the sound card, optional Hamlib CAT PTT)
+and **BPSK63** (PSK Varicode through the sound card, optional Hamlib CAT PTT).
 
 ![HAM Digi Robot main window](assets/main_window.png)
 
@@ -47,6 +48,16 @@ into the matching mode over CAT, when a Hamlib connection is configured.
 - **Settings, all on the main window** — baud rate (45.45 / 50 / 75 /
   100), mark tone (default 2125 Hz), shift (default 170 Hz), stop bits
   (1 / 1.5 / 2), reverse, unshift-on-space.
+
+**BPSK63** (PSK31 Varicode at 62.5 baud, through the sound card)
+- **Receive** — differential BPSK detector (one-symbol matched filter,
+  automatic symbol timing and a few Hz of frequency tracking) feeding a
+  Varicode decoder, with the same kind of level squelch as RTTY. The
+  waterfall marker shows the carrier to tune the signal in by.
+- **Transmit** — raised-cosine-shaped phase reversals on a single audio
+  carrier (the *Carrier* box, default 1000 Hz), optional CAT PTT (same rig
+  as the TX tab; the rig goes to data-USB like in RTTY). Logged to ADIF as
+  `MODE=PSK`, `SUBMODE=BPSK63`.
 
 ### Common to all modes
 

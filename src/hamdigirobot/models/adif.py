@@ -87,6 +87,8 @@ def format_qso_record(record: QsoRecord) -> str:
             parts.append(_field("BAND", band))
 
     parts.append(_field("MODE", record.mode))
+    if record.submode:
+        parts.append(_field("SUBMODE", record.submode))
 
     for name, value in (
         ("RST_SENT", record.rst_sent),

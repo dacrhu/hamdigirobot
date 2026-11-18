@@ -15,15 +15,18 @@ from hamdigirobot import macros
 from hamdigirobot.audio import devices as audio_devices
 from hamdigirobot.audio.capture import AudioCapture
 from hamdigirobot.config import AppConfig
+from hamdigirobot.decoder.bpsk_decoder import BpskDecoderCore
 from hamdigirobot.decoder.decoder import CwDecoder
 from hamdigirobot.decoder.rtty_decoder import RttyDecoderCore
 from hamdigirobot.hamlib.ctypes_bindings import HamlibUnavailableError
 from hamdigirobot.hamlib.frequency_monitor import FrequencyMonitor
 from hamdigirobot.hamlib.rig_client import HamlibError, HamlibRig
 from hamdigirobot.hamlib.sideband import rig_modes_for
-from hamdigirobot.modes import ALL_MODES, RTTY, mode_by_key
+from hamdigirobot.modes import ALL_MODES, BPSK63, CW, RTTY, mode_by_key
 from hamdigirobot.models.qso import QsoLoggingError, QsoRecord, build_qso_logger
 from hamdigirobot.tx.audio_backend import AudioTxBackend
+from hamdigirobot.tx.bpsk_backend import BpskAudioTxBackend
+from hamdigirobot.tx.bpsk_modulator import BAUD as BPSK63_BAUD
 from hamdigirobot.tx.backend import TxBackend
 from hamdigirobot.tx.encoder import manual_keying_jitter_from_level
 from hamdigirobot.tx.hamlib_backend import HamlibTxBackend
@@ -205,6 +208,10 @@ class MainWindow(QMainWindow):
         pitch vs. mark tone, which controls are shown. Also loads that
         mode's own tone into the pitch spinbox."""
         rtty = self._mode is RTTY
+        psk = self._mode is BPSK63
+        # Read before touching the spinbox: switching its range can clamp
+        # (and signal) the old mode's value into this mode's config field.
+        pitch = self._pitch_from_config()
         self.rx_panel.set_rtty_mode(
             rtty,
             self.config.rtty_shift_hz,
@@ -213,8 +220,27 @@ class MainWindow(QMainWindow):
             self.config.rtty_unshift_on_space,
         )
         self.tx_panel.set_rtty_mode(rtty, self.config.rtty_baud, self.config.rtty_stop_bits)
-        self.rx_panel.pitch_spinbox.setValue(self.config.rtty_mark_hz if rtty else self.config.target_pitch_hz)
+        self.rx_panel.set_bpsk_mode(psk, BPSK63_BAUD)
+        self.tx_panel.set_bpsk_mode(psk)
+        self.rx_panel.pitch_spinbox.setValue(pitch)
         self.setWindowTitle(f"HAM Digi Robot — {self._mode.label}")
+
+    def _pitch_from_config(self) -> int:
+        """The pitch spinbox value (CW pitch / RTTY mark / BPSK63 carrier)
+        the current mode keeps in the config."""
+        if self._mode is RTTY:
+            return self.config.rtty_mark_hz
+        if self._mode is BPSK63:
+            return self.config.bpsk_carrier_hz
+        return self.config.target_pitch_hz
+
+    def _store_pitch(self, hz: int) -> None:
+        if self._mode is RTTY:
+            self.config.rtty_mark_hz = hz
+        elif self._mode is BPSK63:
+            self.config.bpsk_carrier_hz = hz
+        else:
+            self.config.target_pitch_hz = hz
 
     def _set_mode(self, key: str) -> None:
         new_mode = mode_by_key(key)
@@ -224,10 +250,9 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Stop the transmission before changing mode.")
             self._mode_actions[self._mode.key].setChecked(True)
             return
-        # CW's pitch is only written back to the config on close (see
-        # closeEvent); RTTY's mark tone is kept live by _on_target_pitch_changed.
-        if self._mode is not RTTY:
-            self.config.target_pitch_hz = self.rx_panel.pitch_spinbox.value()
+        # The old mode's pitch goes back to its own config field before the
+        # spinbox is repurposed (it is also kept live by _on_target_pitch_changed).
+        self._store_pitch(self.rx_panel.pitch_spinbox.value())
         self._stop_audio_pipeline()
         self._mode = new_mode
         self.config.mode = new_mode.key
@@ -391,8 +416,7 @@ class MainWindow(QMainWindow):
     # -- Audio pipeline (capture -> ring buffer -> CwDecoder -> waterfall) --
 
     def _on_target_pitch_changed(self, hz: int) -> None:
-        if self._mode is RTTY:
-            self.config.rtty_mark_hz = hz
+        self._store_pitch(hz)
         if self._decoder is not None:
             self._decoder.target_pitch_hz = hz
 
@@ -463,7 +487,17 @@ class MainWindow(QMainWindow):
 
         self._audio_capture = capture
 
-        if self._mode is RTTY:
+        if self._mode is BPSK63:
+            decoder = CwDecoder(
+                ring_buffer=capture.ring_buffer,
+                sample_rate=capture.samplerate,
+                core=BpskDecoderCore(
+                    sample_rate=capture.samplerate,
+                    carrier_hz=self.config.bpsk_carrier_hz,
+                    waterfall_half_span_hz=self.config.waterfall_half_span_hz,
+                ),
+            )
+        elif self._mode is RTTY:
             decoder = CwDecoder(
                 ring_buffer=capture.ring_buffer,
                 sample_rate=capture.samplerate,
@@ -588,6 +622,7 @@ class MainWindow(QMainWindow):
             callsign=callsign,
             freq_hz=freq_hz,
             mode=self._mode.adif_mode,
+            submode=self._mode.adif_submode,
             rx_start=self.qso_panel.start_time_edit.dateTime().toPython(),
             rx_end=self.qso_panel.end_time_edit.dateTime().toPython(),
             rst_sent=self.qso_panel.fields["rst_sent"].text().strip(),
@@ -629,6 +664,24 @@ class MainWindow(QMainWindow):
         return backend
 
     def _build_rtty_tx_backend(self) -> TxBackend | None:
+        return self._build_modem_tx_backend(
+            lambda **kw: RttyAudioTxBackend(
+                params=self.config.rtty_params(), unshift_on_space=self.config.rtty_unshift_on_space, **kw
+            ),
+            "RTTY",
+        )
+
+    def _build_bpsk_tx_backend(self) -> TxBackend | None:
+        # The carrier is the pitch spinbox (kept live in config.bpsk_carrier_hz).
+        return self._build_modem_tx_backend(
+            lambda **kw: BpskAudioTxBackend(params=self.config.bpsk_params(), **kw), "BPSK63"
+        )
+
+    def _build_modem_tx_backend(self, make_backend, label: str) -> TxBackend | None:
+        """Shared setup of the sound-card modem modes (RTTY, BPSK63):
+        output device and, with the Hamlib TX setting, CAT PTT.
+        `make_backend(device=, route_to_pipewire_sink=, rig=)` builds the
+        mode's backend."""
         device_name = self.config.tx_output_device
         pa_device, pipewire_sink = audio_devices.resolve_output_device(device_name)
         if device_name is not None and pa_device is None and pipewire_sink is None:
@@ -646,9 +699,7 @@ class MainWindow(QMainWindow):
             paused_monitor = True
             rig = HamlibRig(model_id=model_id, port_path=port_path, baud_rate=baud_rate)
 
-        backend = RttyAudioTxBackend(
-            params=self.config.rtty_params(),
-            unshift_on_space=self.config.rtty_unshift_on_space,
+        backend = make_backend(
             device=pa_device,
             route_to_pipewire_sink=pipewire_sink,
             rig=rig,
@@ -656,7 +707,7 @@ class MainWindow(QMainWindow):
         try:
             backend.start()
         except Exception as exc:
-            self.statusBar().showMessage(f"RTTY TX error: {exc}")
+            self.statusBar().showMessage(f"{label} TX error: {exc}")
             if paused_monitor:
                 self._freq_monitor_resume.emit()
             return None
@@ -705,6 +756,8 @@ class MainWindow(QMainWindow):
         backend_name = self.config.tx_backend
         if self._mode is RTTY:
             backend = self._build_rtty_tx_backend()
+        elif self._mode is BPSK63:
+            backend = self._build_bpsk_tx_backend()
         elif backend_name == "hamlib":
             backend = self._build_hamlib_tx_backend()
         else:
@@ -712,12 +765,17 @@ class MainWindow(QMainWindow):
         if backend is None:
             return  # a status bar message explaining why was already shown
 
-        wpm = self.tx_panel.current_baud() if self._mode is RTTY else self.tx_panel.speed_spinbox.value()
+        if self._mode is RTTY:
+            wpm = self.tx_panel.current_baud()
+        elif self._mode is BPSK63:
+            wpm = BPSK63_BAUD
+        else:
+            wpm = self.tx_panel.speed_spinbox.value()
         # Manual-keying jitter only means anything for the audio backend --
         # over CAT the rig's own keyer paces the real timing regardless of
         # what we pass (see tx.hamlib_backend), and the checkbox/slider are
         # disabled in that mode anyway (ui.tx_panel.set_manual_keying_available).
-        if self._mode is not RTTY and backend_name != "hamlib" and self.tx_panel.manual_keying_checkbox.isChecked():
+        if self._mode is CW and backend_name != "hamlib" and self.tx_panel.manual_keying_checkbox.isChecked():
             jitter = manual_keying_jitter_from_level(self.tx_panel.manual_keying_slider.value())
         else:
             jitter = 0.0
@@ -735,7 +793,7 @@ class MainWindow(QMainWindow):
         self._tx_thread = thread
 
         self.tx_panel.set_sending(True)
-        unit = "baud" if self._mode is RTTY else "WPM"
+        unit = "WPM" if self._mode is CW else "baud"
         self.statusBar().showMessage(f"Sending ({wpm:g} {unit})…")
 
     def _on_tx_stop_clicked(self) -> None:
@@ -774,10 +832,7 @@ class MainWindow(QMainWindow):
         self._freq_monitor_thread.wait(2000)
 
         # Persist current UI state back into the config before closing.
-        if self._mode is RTTY:
-            self.config.rtty_mark_hz = self.rx_panel.pitch_spinbox.value()
-        else:
-            self.config.target_pitch_hz = self.rx_panel.pitch_spinbox.value()
+        self._store_pitch(self.rx_panel.pitch_spinbox.value())
         self.config.mode = self._mode.key
         self.config.tx_speed_wpm = self.tx_panel.speed_spinbox.value()
         self.config.manual_keying_emulation = self.tx_panel.manual_keying_checkbox.isChecked()

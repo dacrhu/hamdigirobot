@@ -251,6 +251,16 @@ class TxPanel(QGroupBox):
             self.stop_bits_combo.setCurrentIndex(index if index >= 0 else 1)
             self.stop_bits_combo.blockSignals(False)
 
+    def set_bpsk_mode(self, enabled: bool) -> None:
+        """BPSK63 look of the panel; call *after* set_rtty_mode(False). Fixed
+        symbol rate, no framing options: only the text and macros remain."""
+        self.speed_caption.setVisible(not enabled)
+        if not enabled:
+            return
+        self.setTitle("TX — BPSK63")
+        for widget in (*self._cw_only_widgets, *self._rtty_only_widgets, self.baud_combo):
+            widget.setVisible(False)
+
     def set_baud(self, baud: float) -> None:
         index = self.baud_combo.findData(float(baud))
         if index < 0:

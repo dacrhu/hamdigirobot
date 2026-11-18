@@ -33,6 +33,7 @@ class QsoRecord:
     callsign: str = ""
     freq_hz: float | None = None
     mode: str = "CW"
+    submode: str = ""  # ADIF SUBMODE, e.g. BPSK63 (with mode PSK)
     rx_start: datetime | None = None
     rx_end: datetime | None = None
     rst_sent: str = ""

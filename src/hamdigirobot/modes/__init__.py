@@ -18,12 +18,14 @@ class ModeSpec:
     key: str  # value stored in config.AppConfig.mode
     label: str  # shown in the Mode menu / window title
     adif_mode: str  # ADIF MODE field value for QSO logging
+    adif_submode: str = ""  # ADIF SUBMODE (e.g. PSK / BPSK63), "" = none
 
 
 CW = ModeSpec("cw", "CW", "CW")
 RTTY = ModeSpec("rtty", "RTTY", "RTTY")
+BPSK63 = ModeSpec("bpsk63", "BPSK63", "PSK", "BPSK63")
 
-ALL_MODES: list[ModeSpec] = [CW, RTTY]
+ALL_MODES: list[ModeSpec] = [CW, RTTY, BPSK63]
 _BY_KEY = {m.key: m for m in ALL_MODES}
 
 
